@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#f8f3e8" />
+    <meta name="description" content="在星空小樹屋，和喜歡的毛孩子慢慢生活、收集遠方寄來的溫柔明信片。" />
+    <title>小小旅行家・星空小樹屋</title>
+  </head>
+  <body>
+    <div class="page-shell">
+      <header class="topbar">
+        <a class="brand" href="#home" aria-label="小小旅行家首頁">
+          <span class="brand-mark" aria-hidden="true"><svg viewBox="0 0 40 40"><path d="M20 4.5 24 15l11 1-8.4 7.2 2.7 11L20 28.1 10.7 34l2.7-10.8L5 16l11-1z"/><path d="M18 12v13M12 18h13"/></svg></span>
+          <span><strong>小小旅行家</strong><small>THE LITTLE STAR TRAVELER</small></span>
+        </a>
+        <div class="topbar-right">
+          <div class="stardust-chip" title="每分鐘會慢慢收到星塵"><span class="star-mini">✦</span><span id="stardust-count">12</span><small>星塵</small></div>
+          <button class="mail-top-button" id="open-inbox-top" type="button"><span aria-hidden="true">✉</span><span>星際郵筒</span><b id="unread-count">1</b></button>
+        </div>
+      </header>
+
+      <main id="home">
+        <section class="welcome-line" aria-label="歡迎">
+          <div><span class="eyebrow"><i></i> 一座可以慢下來的小星球</span><h1>今天，也一起待一會兒吧。</h1></div>
+          <p>沒有待辦清單，只有喜歡你的毛孩子。</p>
+        </section>
+
+        <section class="play-layout" aria-label="星空小樹屋遊戲">
+          <div class="left-column">
+            <div class="scene-card">
+              <div class="scene-topline"><span class="location-pill"><span class="location-pin">✦</span><span id="location-name">午後草地</span></span><button class="small-scene-button" id="open-travel-top" type="button">去別的地方 <span aria-hidden="true">↗</span></button></div>
+              <div class="garden-stage" id="garden-stage" aria-label="點一下毛孩子，牠會知道你來了"></div>
+              <div class="scene-bottomline"><span class="weather-dot"></span><span id="scene-whisper">微風把草葉吹得沙沙響。</span><span class="tap-hint">試著點點看牠們 <span aria-hidden="true">♡</span></span></div>
+            </div>
+
+            <div class="companion-section">
+              <div class="section-heading"><div><span class="eyebrow">今天想陪誰呢</span><h2>我的小夥伴</h2></div><span class="together-note"><span aria-hidden="true">✳</span> 已相伴 <b id="days-together">1</b> 天</span></div>
+              <div class="pet-choices" id="pet-choices" role="group" aria-label="選擇陪伴的寵物"></div>
+            </div>
+          </div>
+
+          <aside class="journal-card" aria-label="陪伴紀錄與互動">
+            <div class="journal-heading"><span class="stamp-mark" aria-hidden="true">✿</span><div><span class="eyebrow">留一點時間給自己</span><h2>把今天，放輕一點</h2></div></div>
+            <div class="companion-note">
+              <div class="pet-avatar" id="pet-avatar" aria-hidden="true">🐕</div>
+              <div class="companion-copy"><span class="tiny-label">現在陪著你的是</span><strong id="active-pet-name">阿栗</strong><span id="active-pet-mood">在窗邊曬著暖暖的太陽</span></div>
+              <span class="mood-sparkle" aria-hidden="true">✦</span>
+            </div>
+
+            <div class="bond-box">
+              <div class="bond-label"><span>我們的默契</span><strong id="bond-level">星光夥伴 · 5</strong></div>
+              <div class="bond-track" aria-label="默契進度"><span id="bond-progress"></span></div>
+              <div class="bond-foot"><span>每一次相伴，都會留下星光</span><span id="bond-percent">40%</span></div>
+            </div>
+
+            <div class="action-block"><div class="section-kicker">慢慢做一件小事</div><div class="action-grid">
+              <button class="action-button touch-action" id="pet-touch" type="button"><span class="action-icon">♡</span><strong>摸摸牠</strong><small>傳遞一點溫度</small></button>
+              <button class="action-button snack-action" id="pet-snack" type="button"><span class="action-icon">♧</span><strong>分享點心</strong><small>小餅乾 <b id="snack-count">3</b> 份</small></button>
+              <button class="action-button walk-action" id="pet-travel" type="button"><span class="action-icon">➶</span><strong>一起散步</strong><small>去收一張明信片</small></button>
+            </div></div>
+
+            <div class="postcard-preview" id="postcard-preview">
+              <div class="postcard-top"><span>FROM A FARAWAY STAR</span><span class="postmark">✦</span></div>
+              <strong id="latest-card-title">奶油雲朵星的來信</strong>
+              <p id="latest-card-excerpt">花不會催你開。累了的話，就坐下來一起吹吹風吧。</p>
+              <button class="text-link" id="open-inbox" type="button">翻開星際郵筒 <span aria-hidden="true">→</span></button>
+            </div>
+
+            <div class="journal-footer"><button class="write-link" id="open-letter" type="button"><span aria-hidden="true">✎</span> 寫一封信給未來的自己</button><button class="decorate-link" id="open-shop" type="button"><span aria-hidden="true">⌂</span> 佈置小樹屋</button></div>
+          </aside>
+        </section>
+
+        <footer class="page-footer"><span>慢慢來也沒關係，花有花的時間。</span><span>一切故事，都會在這裡好好收藏 <span aria-hidden="true">♡</span></span></footer>
+      </main>
+    </div>
+
+    <div class="modal-backdrop" id="modal-backdrop" hidden>
+      <section class="modal-card" id="modal-card" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+        <button class="modal-close" id="modal-close" type="button" aria-label="關閉">×</button>
+        <div id="modal-content"></div>
+      </section>
+    </div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
