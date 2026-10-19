@@ -23,8 +23,8 @@
 
       <main id="home">
         <section class="welcome-line" aria-label="歡迎">
-          <div><span class="eyebrow"><i></i> 未知星球放置生活 · 牠正在遠方探索</span><h1>今天，也一起待一會兒吧。</h1></div>
-          <p>牠會散步、睡覺，慢慢認識新朋友。</p>
+          <div><span class="eyebrow"><i></i> <span id="welcome-status">未知星球放置生活 · 等待毛孩加入</span></span><h1>今天，也一起待一會兒吧。</h1></div>
+          <p id="welcome-description">上傳家中的毛孩，讓星球旅程從牠開始。</p>
         </section>
 
         <section class="play-layout" aria-label="星空小樹屋遊戲">
@@ -38,14 +38,19 @@
             <div class="companion-section">
               <div class="section-heading"><div><span class="eyebrow">今天想陪誰呢</span><h2>我的小夥伴</h2></div><span class="together-note"><span aria-hidden="true">✳</span> 已相伴 <b id="days-together">1</b> 天</span></div>
               <div class="pet-choices" id="pet-choices" role="group" aria-label="選擇陪伴的寵物"></div>
+              <div class="personal-pet-callout">
+                <span class="personal-pet-callout-mark" aria-hidden="true">♡</span>
+                <span><strong id="personal-pet-button-label">讓我的毛孩成為主角</strong><small id="personal-pet-button-note">上傳照片，製作專屬的星球旅人</small></span>
+                <button class="personal-pet-open-button" id="open-personal-pet" type="button">設定照片 <span aria-hidden="true">→</span></button>
+              </div>
             </div>
           </div>
 
           <aside class="journal-card" aria-label="陪伴紀錄與互動">
             <div class="journal-heading"><span class="stamp-mark" aria-hidden="true">✿</span><div><span class="eyebrow">留一點時間給自己</span><h2>把今天，放輕一點</h2></div></div>
             <div class="companion-note">
-              <div class="pet-avatar" id="pet-avatar" aria-hidden="true">🐕</div>
-              <div class="companion-copy"><span class="tiny-label">現在陪著你的是</span><strong id="active-pet-name">阿栗</strong><span id="active-pet-mood">在窗邊曬著暖暖的太陽</span></div>
+              <div class="pet-avatar" id="pet-avatar" aria-hidden="true">♡</div>
+              <div class="companion-copy"><span class="tiny-label">現在陪著你的是</span><strong id="active-pet-name">等待毛孩加入</strong><span id="active-pet-mood">上傳家中的毛孩，讓牠來星球陪你</span></div>
               <span class="mood-sparkle" aria-hidden="true">✦</span>
             </div>
 
@@ -88,7 +93,10 @@
 
       <section class="house-screen" id="house-screen" aria-label="我的小屋" hidden>
         <section class="house-welcome">
-          <span class="eyebrow"><i></i> OUR LITTLE HOME · 一個可以安心休息的地方</span>
+          <div class="house-welcome-topline">
+            <span class="eyebrow"><i></i> OUR LITTLE HOME</span>
+            <button class="house-settings-button" id="open-settings" type="button"><span aria-hidden="true">⚙</span> 設定</button>
+          </div>
           <h1>把回憶，慢慢放進小屋。</h1>
           <p>照片、玩具和旅行帶回來的小紀念，都有自己的位置。</p>
         </section>
@@ -96,7 +104,7 @@
         <article class="house-room-card">
           <div class="house-room-heading"><div><small>THE LITTLE STAR COTTAGE</small><strong>今晚也替自己留盞燈</strong></div><span class="house-room-stamp" aria-hidden="true">⌂</span></div>
           <div class="house-room-art" id="house-room-art" role="img" aria-label="毛孩子在溫暖的小屋裡休息"></div>
-          <div class="house-room-footer"><span><strong id="house-pet-name">阿栗</strong>正在軟綿綿的床上打盹</span><button class="house-decor-button" id="open-house-decor" type="button"><span aria-hidden="true">✿</span> 慢慢布置</button></div>
+          <div class="house-room-footer"><span><strong id="house-pet-name">等待毛孩加入</strong><span id="house-rest-note">上傳照片後，這裡會有牠休息的身影</span></span><button class="house-decor-button" id="open-house-decor" type="button"><span aria-hidden="true">✿</span> 慢慢布置</button></div>
         </article>
 
         <section class="house-keepsake-card" aria-label="小屋裡的收藏">

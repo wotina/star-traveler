@@ -1,13 +1,21 @@
 import Phaser from "phaser";
 import "./style.css";
 import { bagOptions, createHouseSvg, createSceneSvg, decorations, destinations, earOptions, eyeOptions, furOptions, hatOptions, pets, traitOptions } from "./scene-art.js";
+import { deletePersonalPet, loadPersonalPets, savePersonalPet } from "./pet-storage.js";
 
 const STORE_KEY = "little-star-traveler-save-v1";
 const DAY = 24 * 60 * 60 * 1000;
 const SNACK_PERIOD = 8 * 60 * 1000;
 const POSTCARD_PERIOD = 3 * DAY;
 const LIFE_PERIOD = 90 * 1000;
+const PET_CUTOUT_MODEL = "studioludens/birefnet-lite-512";
+const TRANSFORMERS_MODULE_URL = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1";
 const LIFE_SEQUENCE = ["explore", "friend", "rest"];
+const FONT_SIZE_OPTIONS = [
+  { id: "standard", label: "標準", scale: 1 },
+  { id: "large", label: "大", scale: 1.15 },
+  { id: "extra-large", label: "特大", scale: 1.3 },
+];
 const LIFE_KIND_LABELS = { explore: "探索新地點", friend: "認識新朋友", rest: "睡覺休息" };
 const souvenirCatalog = [
   { id: "moon-shell", name: "月光小貝殼", icon: "🐚", description: "海浪替你留住的一點月光。" },
@@ -30,23 +38,27 @@ function createPetLifeRecord(now = Date.now()) {
 }
 
 function normalizePetLife(value, fallback) {
-  return Object.fromEntries(pets.map((pet) => {
-    const saved = value?.[pet.id];
-    if (!saved || typeof saved !== "object") return [pet.id, fallback[pet.id]];
+  const normalizeRecord = (saved, id, empty) => {
+    if (!saved || typeof saved !== "object") return empty;
     const memories = Array.isArray(saved.memories) ? saved.memories.filter((memory) => memory && LIFE_SEQUENCE.includes(memory.activity)).slice(-6).map((memory) => ({
-      id: String(memory.id || `${pet.id}-${memory.activity}-${memory.date || Date.now()}`),
+      id: String(memory.id || `${id}-${memory.activity}-${memory.date || Date.now()}`),
       activity: memory.activity,
       title: typeof memory.title === "string" ? memory.title.slice(0, 60).replaceAll("午後草地", "暮光草地") : LIFE_KIND_LABELS[memory.activity],
       message: typeof memory.message === "string" ? memory.message.slice(0, 180).replaceAll("午後草地", "暮光草地") : "",
       date: Number(memory.date) || Date.now(),
     })) : [];
-    return [pet.id, {
+    return {
       activity: LIFE_SEQUENCE.includes(saved.activity) ? saved.activity : "explore",
       lastActivityAt: Number(saved.lastActivityAt) || Date.now(),
       memories,
       counts: Object.fromEntries(LIFE_SEQUENCE.map((activity) => [activity, Math.max(0, Number(saved.counts?.[activity]) || 0)])),
-    }];
-  }));
+    };
+  };
+  const records = Object.fromEntries(pets.map((pet) => [pet.id, normalizeRecord(value?.[pet.id], pet.id, fallback[pet.id])]));
+  for (const [id, record] of Object.entries(value || {})) {
+    if (id.startsWith("uploaded:") && record && typeof record === "object") records[id] = normalizeRecord(record, id, createPetLifeRecord());
+  }
+  return records;
 }
 
 function normalizeTraveler(value) {
@@ -73,7 +85,11 @@ const defaultState = () => {
     stardust: 12,
     snacks: 3,
     bond: 84,
+    settings: { fontSize: "standard" },
     activePet: "dog",
+    activeCustomPetId: "",
+    customPetEnabled: false,
+    customPetName: "我的毛孩",
     traveler: null,
     petLife: Object.fromEntries(pets.map((pet) => [pet.id, createPetLifeRecord(now)])),
     location: "meadow",
@@ -87,8 +103,8 @@ const defaultState = () => {
       from: "奶油雲朵星",
       message: "花不會催你開。累了的話，就坐下來一起吹吹風吧。願你今天也能對自己溫柔一點。",
       destination: "meadow",
-      petSpecies: "dog",
-      petName: "阿栗",
+      petSpecies: null,
+      petName: "",
       date: now - 1000 * 60 * 17,
     }],
     readCards: [],
@@ -117,13 +133,20 @@ function loadState() {
     return {
       ...fresh,
       ...saved,
+      settings: {
+        fontSize: FONT_SIZE_OPTIONS.some((option) => option.id === saved.settings?.fontSize)
+          ? saved.settings.fontSize
+          : fresh.settings.fontSize,
+      },
       traveler: normalizeTraveler(saved.traveler),
       petLife: normalizePetLife(saved.petLife, fresh.petLife),
       visited: Array.isArray(saved.visited) ? saved.visited : fresh.visited,
       decor: Array.isArray(saved.decor) ? saved.decor : [],
       houseItems,
       houseDecor,
-      cards: Array.isArray(saved.cards) ? saved.cards : fresh.cards,
+      cards: Array.isArray(saved.cards) ? saved.cards.map((card) => pets.some((pet) => pet.name === card?.petName)
+        ? { ...card, petSpecies: null, petName: "" }
+        : card) : fresh.cards,
       souvenirs: Array.isArray(saved.souvenirs) ? saved.souvenirs.filter((item) => item && souvenirCatalog.some((souvenir) => souvenir.id === item.id)).map((item) => {
         const catalogItem = souvenirCatalog.find((souvenir) => souvenir.id === item.id);
         return { ...catalogItem, count: Math.max(1, Number(item.count) || 1) };
@@ -148,6 +171,9 @@ function loadState() {
       bond: Math.max(0, Number(saved.bond) || 0),
       location: destinations.some((item) => item.id === saved.location) ? saved.location : "meadow",
       activePet: pets.some((pet) => pet.id === saved.activePet) ? saved.activePet : "dog",
+      activeCustomPetId: typeof saved.activeCustomPetId === "string" ? saved.activeCustomPetId : "",
+      customPetEnabled: Boolean(saved.customPetEnabled),
+      customPetName: typeof saved.customPetName === "string" ? saved.customPetName.trim().slice(0, 10) || "我的毛孩" : "我的毛孩",
     };
   } catch {
     return fresh;
@@ -174,6 +200,12 @@ let pendingMemoryPhotoTask = null;
 let arCameraStream = null;
 let arCameraFacing = "environment";
 let arPetDrag = null;
+let personalPets = [];
+let personalPetBlob = null;
+let personalPetObjectUrl = "";
+let backgroundRemovalModel = null;
+let personalPetEditorSession = 0;
+let personalPetEditorCleanup = null;
 
 function persist() {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch { /* The game remains playable if storage is unavailable. */ }
@@ -185,7 +217,13 @@ function escapeHtml(value) {
 
 function currentPet() {
   const base = pets.find((pet) => pet.id === state.activePet) || pets[0];
-  return state.traveler?.species === base.id ? { ...base, name: state.traveler.name, mood: state.traveler.trait } : base;
+  const personalPet = personalPets.find((pet) => pet.id === state.activeCustomPetId);
+  if (personalPet) return { ...base, name: personalPet.name, mood: "正在星球上陪你慢慢生活", icon: "♡", lifeKey: `uploaded:${personalPet.id}` };
+  return { ...base, name: "還沒有毛孩", mood: "上傳家中的毛孩，讓牠來星球陪你", icon: "＋", lifeKey: "" };
+}
+function activeLifeRecord() {
+  const key = currentPet().lifeKey;
+  return key ? (state.petLife[key] || (state.petLife[key] = createPetLifeRecord())) : createPetLifeRecord();
 }
 function currentDestination() { return destinations.find((place) => place.id === state.location) || destinations[0]; }
 function unreadCount() { return state.cards.filter((card) => !state.readCards.includes(card.id)).length; }
@@ -197,8 +235,17 @@ function renderHouseScene() {
     traveler: state.traveler,
     houseDecor: state.houseDecor,
     souvenirs: state.souvenirs,
+    showPet: false,
   });
+  if (personalPetObjectUrl && state.customPetEnabled) {
+    const housePet = document.createElement("img");
+    housePet.className = "house-personal-pet";
+    housePet.src = personalPetObjectUrl;
+    housePet.alt = `${currentPet().name} 在小屋裡休息`;
+    houseRoomArt.append(housePet);
+  }
   $("#house-pet-name").textContent = currentPet().name;
+  $("#house-rest-note").textContent = state.customPetEnabled ? "正在軟綿綿的床上打盹" : "上傳照片後，這裡會有牠休息的身影";
   $("#house-item-count").textContent = `小屋裡擺著 ${state.houseDecor.length} 件小物`;
   const placedItems = houseDecorCatalog.filter((item) => state.houseDecor.includes(item.id));
   $("#house-room-items").innerHTML = placedItems.length ? placedItems.map((item) => `
@@ -209,13 +256,27 @@ function renderHouseScene() {
 
 function updateHUD() {
   const pet = currentPet();
+  const hasUploadedPet = Boolean(pet.lifeKey);
   $("#stardust-count").textContent = String(state.stardust);
   $("#snack-count").textContent = String(state.snacks);
   $("#location-name").textContent = currentDestination().name;
   $("#scene-whisper").textContent = sceneWhispers[state.location] || "微風把草葉吹得沙沙響。";
   $("#active-pet-name").textContent = pet.name;
   $("#active-pet-mood").textContent = pet.mood;
-  $("#pet-avatar").textContent = pet.icon;
+  $("#welcome-status").textContent = hasUploadedPet ? "未知星球放置生活 · 牠正在遠方探索" : "未知星球放置生活 · 等待毛孩加入";
+  $("#welcome-description").textContent = hasUploadedPet ? "牠會散步、睡覺，慢慢認識新朋友。" : "上傳家中的毛孩，讓星球旅程從牠開始。";
+  stage.setAttribute("aria-label", hasUploadedPet ? `點一下${pet.name}，牠會知道你來了` : "星球風景，等待毛孩加入");
+  $(".tap-hint").hidden = !hasUploadedPet;
+  const petAvatar = $("#pet-avatar");
+  petAvatar.replaceChildren();
+  if (state.customPetEnabled && personalPetObjectUrl) {
+    const avatarImage = document.createElement("img");
+    avatarImage.src = personalPetObjectUrl;
+    avatarImage.alt = "毛孩去背照片";
+    petAvatar.append(avatarImage);
+  } else {
+    petAvatar.textContent = "♡";
+  }
   $("#days-together").textContent = String(Math.max(1, Math.floor((Date.now() - state.startedAt) / DAY) + 1));
   $("#bond-level").textContent = `星光夥伴 · ${Math.floor(state.bond / 20) + 1}`;
   const progress = state.bond % 20 / 20 * 100;
@@ -237,15 +298,35 @@ function updateHUD() {
   const nextPostcardAt = state.lastPostcardAt + POSTCARD_PERIOD;
   const daysUntilPostcard = Math.max(1, Math.ceil((nextPostcardAt - Date.now()) / DAY));
   const arrivalNote = $("#postcard-arrival-note");
-  if (arrivalNote) arrivalNote.textContent = `遠方下一封明信片約 ${daysUntilPostcard} 天後寄達`;
+  if (arrivalNote) arrivalNote.textContent = state.customPetEnabled ? `遠方下一封明信片約 ${daysUntilPostcard} 天後寄達` : "加入毛孩後，遠方的信就會寄來";
   $("#traveler-button-label").textContent = state.traveler ? "我的旅人證" : "製作旅人證";
-  $("#pet-choices").innerHTML = pets.map((petOption) => `
-    <button class="pet-choice ${petOption.id === state.activePet ? "active" : ""}" data-pet="${petOption.id}" type="button" aria-pressed="${petOption.id === state.activePet}">
-      <span class="pet-choice-icon" aria-hidden="true">${petOption.icon}</span><span class="pet-choice-copy"><strong>${state.traveler?.species === petOption.id ? escapeHtml(state.traveler.name) : petOption.name}</strong><small>${petOption.kind}${state.traveler?.species === petOption.id ? " · 旅人" : ""}</small></span>
-    </button>`).join("");
-  $("#pet-choices").querySelectorAll("[data-pet]").forEach((button) => {
+  const petChoices = $("#pet-choices");
+  petChoices.innerHTML = personalPets.length
+    ? `${personalPets.map((personalPet) => `
+      <article class="pet-library-card ${personalPet.id === state.activeCustomPetId ? "active" : ""}">
+        <button class="pet-choice" data-pet="${escapeHtml(personalPet.id)}" type="button" aria-pressed="${personalPet.id === state.activeCustomPetId}" aria-label="選擇${escapeHtml(personalPet.name)}">
+          <span class="pet-choice-icon">${personalPet.previewUrl ? `<img src="${personalPet.previewUrl}" alt="">` : "♡"}</span>
+          <span class="pet-choice-copy"><strong>${escapeHtml(personalPet.name)}</strong><small>${personalPet.id === state.activeCustomPetId ? "今天的旅伴" : "家中的毛孩"}</small></span>
+        </button>
+        <button class="pet-library-remove" type="button" data-remove-pet="${escapeHtml(personalPet.id)}" aria-label="移除${escapeHtml(personalPet.name)}">×</button>
+      </article>`).join("")}
+      <button class="pet-choice-add" type="button" data-add-pet><span aria-hidden="true">＋</span><strong>再加入一位毛孩</strong><small>照片數量不限</small></button>`
+    : `<div class="pet-library-empty"><span aria-hidden="true">♡</span><strong>星球還在等你的毛孩</strong><small>上傳家中毛孩的照片，去背後就能成為唯一的主角。</small><button class="primary-button" type="button" data-add-pet>新增第一位毛孩</button></div>`;
+  petChoices.querySelectorAll("[data-pet]").forEach((button) => {
     button.addEventListener("click", () => selectPet(button.dataset.pet));
   });
+  petChoices.querySelectorAll("[data-remove-pet]").forEach((button) => {
+    button.addEventListener("click", () => removePersonalPet(button.dataset.removePet));
+  });
+  petChoices.querySelector("[data-add-pet]")?.addEventListener("click", openPersonalPetSetup);
+  $("#personal-pet-button-label").textContent = personalPets.length ? "把家中的毛孩都帶來" : "星球只住著你上傳的毛孩";
+  $("#personal-pet-button-note").textContent = personalPets.length ? `已加入 ${personalPets.length} 位毛孩，可以隨時切換主角` : "照片去背後會保存在這個裝置";
+  $("#open-personal-pet").textContent = personalPets.length ? "新增毛孩 ＋" : "上傳照片 ＋";
+  $("#open-personal-pet").setAttribute("aria-pressed", String(state.customPetEnabled));
+  $("#open-personal-pet").classList.toggle("is-active", state.customPetEnabled);
+  $("#pet-touch").disabled = !state.customPetEnabled;
+  $("#pet-snack").disabled = !state.customPetEnabled;
+  $("#pet-travel").disabled = !state.customPetEnabled;
   updatePetLifePanel();
 }
 
@@ -270,6 +351,8 @@ const lifeMemoryArt = {
 const lifeFriends = ["小雲雀", "郵差蝸牛", "星星精靈", "棉花兔"];
 
 function petLifeName(petId) {
+  if (String(petId).startsWith("uploaded:")) return personalPets.find((pet) => `uploaded:${pet.id}` === petId)?.name || "我的毛孩";
+  if (state.customPetEnabled) return currentPet().name;
   const base = pets.find((pet) => pet.id === petId) || pets[0];
   return state.traveler?.species === petId ? state.traveler.name : base.name;
 }
@@ -317,12 +400,13 @@ function renderLifeMemoryGrid(record, petId) {
 }
 
 function updatePetLifePanel() {
-  const record = state.petLife[state.activePet] || (state.petLife[state.activePet] = createPetLifeRecord());
+  const pet = currentPet();
+  const record = activeLifeRecord();
   const status = lifeStatus[record.activity] || lifeStatus.explore;
   const destination = destinations.find((place) => place.id === state.location) || destinations[0];
-  const title = record.activity === "explore" ? `${petLifeName(state.activePet)}正在${destination.name}探索`
-    : record.activity === "friend" ? `${petLifeName(state.activePet)}在${destination.name}遇見新朋友`
-      : `${petLifeName(state.activePet)}在${destination.name}睡午覺`;
+  const title = !pet.lifeKey ? "上傳一張照片，替毛孩留下日常" : record.activity === "explore" ? `${pet.name}正在${destination.name}探索`
+    : record.activity === "friend" ? `${pet.name}在${destination.name}遇見新朋友`
+      : `${pet.name}在${destination.name}睡午覺`;
   const remaining = Math.max(0, record.lastActivityAt + LIFE_PERIOD - Date.now());
   const seconds = Math.ceil(remaining / 1000);
   const timer = `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
@@ -333,14 +417,15 @@ function updatePetLifePanel() {
   $("#life-explore-count").textContent = String(record.counts.explore);
   $("#life-friend-count").textContent = String(record.counts.friend);
   $("#life-rest-count").textContent = String(record.counts.rest);
-  $("#life-memory-grid").innerHTML = renderLifeMemoryGrid(record, state.activePet);
+  $("#life-memory-grid").innerHTML = renderLifeMemoryGrid(record, pet.lifeKey);
 }
 
 function advancePetLives() {
   const now = Date.now();
   let changed = false;
-  for (const pet of pets) {
-    const record = state.petLife[pet.id] || (state.petLife[pet.id] = createPetLifeRecord(now));
+  for (const pet of personalPets) {
+    const lifeKey = `uploaded:${pet.id}`;
+    const record = state.petLife[lifeKey] || (state.petLife[lifeKey] = createPetLifeRecord(now));
     const cycles = Math.floor((now - record.lastActivityAt) / LIFE_PERIOD);
     if (cycles < 1) continue;
     changed = true;
@@ -353,7 +438,7 @@ function advancePetLives() {
     const firstNewStep = Math.max(1, cycles - 5);
     for (let step = firstNewStep; step <= cycles; step += 1) {
       const activity = LIFE_SEQUENCE[(oldIndex + step) % LIFE_SEQUENCE.length];
-      record.memories.push(makeLifeMemory(activity, pet.id, record.lastActivityAt + step * LIFE_PERIOD));
+      record.memories.push(makeLifeMemory(activity, lifeKey, record.lastActivityAt + step * LIFE_PERIOD));
     }
     record.memories = record.memories.slice(-6);
     record.activity = LIFE_SEQUENCE[(oldIndex + cycles) % LIFE_SEQUENCE.length];
@@ -381,14 +466,45 @@ function refresh() {
 }
 
 function selectPet(petId) {
-  if (!pets.some((pet) => pet.id === petId)) return;
-  state.activePet = petId;
+  const selected = personalPets.find((pet) => pet.id === petId);
+  if (!selected) return;
+  state.activeCustomPetId = selected.id;
+  state.customPetName = selected.name;
+  state.customPetEnabled = true;
+  state.activePet = "dog";
+  setPersonalPetAsset(selected.blob);
+  gameScene?.setPersonalPet(selected.blob);
   refresh();
-  gameScene?.showSparkle(petId, "✦");
+  gameScene?.showSparkle(state.activePet, "✦");
   showToast(`${currentPet().name} 靠過來陪你了。`);
 }
 
+async function removePersonalPet(petId) {
+  const selected = personalPets.find((pet) => pet.id === petId);
+  if (!selected || !window.confirm(`要從毛孩名冊移除「${selected.name}」嗎？`)) return;
+  try {
+    await deletePersonalPet(petId);
+    if (selected.previewUrl) URL.revokeObjectURL(selected.previewUrl);
+    personalPets = personalPets.filter((pet) => pet.id !== petId);
+    if (state.activeCustomPetId === petId) {
+      const nextPet = personalPets[0] || null;
+      state.activeCustomPetId = nextPet?.id || "";
+      state.customPetEnabled = Boolean(nextPet);
+      state.customPetName = nextPet?.name || "我的毛孩";
+      setPersonalPetAsset(nextPet?.blob || null);
+      gameScene?.setPersonalPet(nextPet?.blob || null);
+    }
+    refresh();
+    showToast(`已將${selected.name}從名冊移除。`);
+  } catch (error) {
+    showToast(error?.message || "移除沒有完成，請再試一次。");
+  }
+}
+
 function closeModal() {
+  personalPetEditorSession += 1;
+  personalPetEditorCleanup?.();
+  personalPetEditorCleanup = null;
   modalBackdrop.hidden = true;
   modalCard.classList.remove("traveler-modal");
   document.body.classList.remove("modal-open");
@@ -403,8 +519,312 @@ function openModal(markup) {
   $("#modal-close").focus({ preventScroll: true });
 }
 
+function setPersonalPetAsset(blob) {
+  personalPetBlob = blob;
+  if (personalPetObjectUrl) URL.revokeObjectURL(personalPetObjectUrl);
+  personalPetObjectUrl = blob ? URL.createObjectURL(blob) : "";
+}
+
+async function getBackgroundRemovalModel() {
+  if (!backgroundRemovalModel) {
+    backgroundRemovalModel = (async () => {
+      // Load the image model only when the player asks for automatic cutout.
+      const transformers = await import(/* @vite-ignore */ TRANSFORMERS_MODULE_URL);
+      // The upstream 1024px graph exceeds browser WASM/WebGPU memory limits.
+      // This 512px export is specifically packaged for client-side inference.
+      const [model, processor] = await Promise.all([
+        transformers.AutoModel.from_pretrained(PET_CUTOUT_MODEL, { dtype: "fp32" }),
+        transformers.AutoProcessor.from_pretrained(PET_CUTOUT_MODEL),
+      ]);
+      return { model, processor, RawImage: transformers.RawImage };
+    })().catch((error) => {
+      backgroundRemovalModel = null;
+      throw error;
+    });
+  }
+  return backgroundRemovalModel;
+}
+
+function decodeImageFile(file) {
+  return createImageBitmap(file, { imageOrientation: "from-image" });
+}
+
+async function makePetInferenceImage(file) {
+  const bitmap = await decodeImageFile(file);
+  const scale = Math.min(1, 1024 / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  const context = canvas.getContext("2d", { alpha: false });
+  context.fillStyle = "#f7f2e7";
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  bitmap.close?.();
+  return canvas;
+}
+
+function cutOutPet(sourceCanvas, mask) {
+  if (!mask?.data || !mask.width || !mask.height) throw new Error("模型沒有讀到毛孩輪廓，請換一張主體清楚的照片。 ");
+  const canvas = document.createElement("canvas");
+  canvas.width = sourceCanvas.width;
+  canvas.height = sourceCanvas.height;
+  const context = canvas.getContext("2d", { willReadFrequently: true });
+  context.drawImage(sourceCanvas, 0, 0);
+  const image = context.getImageData(0, 0, canvas.width, canvas.height);
+  const channels = Math.max(1, Number(mask.channels) || 1);
+  let minX = canvas.width, minY = canvas.height, maxX = -1, maxY = -1;
+
+  for (let y = 0; y < canvas.height; y += 1) {
+    const maskY = Math.min(mask.height - 1, Math.floor(y * mask.height / canvas.height));
+    for (let x = 0; x < canvas.width; x += 1) {
+      const maskX = Math.min(mask.width - 1, Math.floor(x * mask.width / canvas.width));
+      const maskIndex = (maskY * mask.width + maskX) * channels;
+      const confidence = mask.data[maskIndex] / 255;
+      const edge = Math.max(0, Math.min(1, (confidence - .08) / .84));
+      const alpha = edge * edge * (3 - 2 * edge);
+      const pixel = (y * canvas.width + x) * 4;
+      image.data[pixel + 3] = Math.round(image.data[pixel + 3] * alpha);
+      if (image.data[pixel + 3] > 18) {
+        minX = Math.min(minX, x);
+        minY = Math.min(minY, y);
+        maxX = Math.max(maxX, x);
+        maxY = Math.max(maxY, y);
+      }
+    }
+  }
+  if (maxX < minX || maxY < minY) throw new Error("這張照片的輪廓不夠清楚，請換一張試試看。 ");
+  context.putImageData(image, 0, 0);
+
+  const padding = Math.round(Math.max(canvas.width, canvas.height) * .025);
+  minX = Math.max(0, minX - padding);
+  minY = Math.max(0, minY - padding);
+  maxX = Math.min(canvas.width - 1, maxX + padding);
+  maxY = Math.min(canvas.height - 1, maxY + padding);
+  const cropped = document.createElement("canvas");
+  cropped.width = maxX - minX + 1;
+  cropped.height = maxY - minY + 1;
+  cropped.getContext("2d").drawImage(canvas, minX, minY, cropped.width, cropped.height, 0, 0, cropped.width, cropped.height);
+  return new Promise((resolve, reject) => {
+    cropped.toBlob((blob) => blob ? resolve(blob) : reject(new Error("照片無法匯出，請再試一次。 ")), "image/png");
+  });
+}
+
+function openPersonalPetSetup() {
+  const session = ++personalPetEditorSession;
+  let selectedFile = null;
+  let cutoutBlob = null;
+  let selectedPreviewUrl = "";
+  let cutoutPreviewUrl = "";
+  personalPetEditorCleanup = () => {
+    if (selectedPreviewUrl) URL.revokeObjectURL(selectedPreviewUrl);
+    if (cutoutPreviewUrl) URL.revokeObjectURL(cutoutPreviewUrl);
+  };
+  let selectionVersion = 0;
+  const existingPreview = `<span class="personal-pet-placeholder" aria-hidden="true">♡</span><small>選一張毛孩照片</small>`;
+
+  openModal(`${modalHeader("A FRIEND FROM HOME", "邀請家中的毛孩加入", "每一張照片都會成為一位獨立旅伴，不會取代已加入的毛孩。")}
+    <div class="personal-pet-editor">
+      <div class="personal-pet-preview" id="personal-pet-preview">${existingPreview}</div>
+      <label class="personal-pet-name-label" for="personal-pet-name">毛孩的名字</label>
+      <input class="memory-caption-input" id="personal-pet-name" maxlength="10" value="" placeholder="例如：咖啡">
+      <label class="memory-photo-picker personal-pet-picker" for="personal-pet-file"><span class="memory-photo-icon" aria-hidden="true">＋</span><strong>從裝置選一張照片</strong><small>建議毛孩完整入鏡，照片最多 12 MB</small><input id="personal-pet-file" type="file" accept="image/*"></label>
+      <p class="personal-pet-status" id="personal-pet-status" role="status" aria-live="polite">照片和去背結果只會留在這個裝置。</p>
+      <p class="personal-pet-privacy-note">第一次去背會下載模型檔（約 183 MB）。之後由瀏覽器在本機處理照片，不會上傳照片。</p>
+      <div class="personal-pet-actions"><div></div><div><button class="secondary-button" id="remove-pet-background" type="button" disabled>自動去背</button><button class="primary-button" id="apply-personal-pet" type="button" disabled>加入毛孩 ♡</button></div></div>
+    </div>`);
+
+  const fileInput = $("#personal-pet-file");
+  const preview = $("#personal-pet-preview");
+  const status = $("#personal-pet-status");
+  const cutoutButton = $("#remove-pet-background");
+  const applyButton = $("#apply-personal-pet");
+  const setStatus = (message) => { if (session === personalPetEditorSession && $("#personal-pet-status")) status.textContent = message; };
+
+  fileInput.addEventListener("change", () => {
+    selectionVersion += 1;
+    selectedFile = fileInput.files?.[0] || null;
+    cutoutBlob = null;
+    applyButton.disabled = true;
+    cutoutButton.disabled = !selectedFile;
+    if (selectedPreviewUrl) URL.revokeObjectURL(selectedPreviewUrl);
+    if (cutoutPreviewUrl) URL.revokeObjectURL(cutoutPreviewUrl);
+    cutoutPreviewUrl = "";
+    if (!selectedFile) {
+      preview.innerHTML = '<span class="personal-pet-placeholder" aria-hidden="true">♡</span><small>選一張毛孩照片</small>';
+      setStatus("照片和去背結果只會留在這個裝置。 ");
+      return;
+    }
+    const supportedPhoto = ["image/jpeg", "image/png", "image/webp", "image/avif"].includes(selectedFile.type);
+    if (!supportedPhoto || selectedFile.size > 12 * 1024 * 1024) {
+      selectedFile = null;
+      fileInput.value = "";
+      cutoutButton.disabled = true;
+      preview.innerHTML = '<span class="personal-pet-placeholder" aria-hidden="true">🐾</span><small>選一張毛孩照片</small>';
+      setStatus("請選擇 JPG、PNG、WebP 或 AVIF 圖片，檔案需在 12 MB 以下。 ");
+      return;
+    }
+    selectedPreviewUrl = URL.createObjectURL(selectedFile);
+    preview.innerHTML = `<img src="${selectedPreviewUrl}" alt="待去背的毛孩照片">`;
+    setStatus("照片準備好了。按「自動去背」開始整理輪廓。 ");
+  });
+
+  cutoutButton.addEventListener("click", async () => {
+    if (!selectedFile) return;
+    const file = selectedFile;
+    const selection = selectionVersion;
+    cutoutButton.disabled = true;
+    applyButton.disabled = true;
+    cutoutButton.textContent = "正在準備…";
+    setStatus("正在載入本機去背模型。第一次使用需要下載模型，請稍等一下……");
+    try {
+      const { model, processor, RawImage } = await getBackgroundRemovalModel();
+      if (session !== personalPetEditorSession || selection !== selectionVersion) return;
+      cutoutButton.textContent = "正在整理輪廓…";
+      setStatus("模型已準備好，正在描出毛孩的輪廓……");
+      const canvas = await makePetInferenceImage(file);
+      const image = RawImage.fromCanvas(canvas);
+      const { pixel_values: pixelValues } = await processor(image);
+      const prediction = await model({ input_image: pixelValues });
+      const logits = prediction?.logits || Object.values(prediction || {}).find((value) => value?.data && value?.dims);
+      if (session !== personalPetEditorSession || selection !== selectionVersion) return;
+      if (!logits?.data || logits.dims.length < 2) {
+        console.warn(`Pet model returned unexpected output: ${JSON.stringify(Object.keys(prediction || {}))}`);
+        throw new Error("模型沒有回傳可用的透明遮罩，請再試一次。 ");
+      }
+      const maskHeight = logits.dims.at(-2);
+      const maskWidth = logits.dims.at(-1);
+      const maskData = new Uint8ClampedArray(maskWidth * maskHeight);
+      for (let index = 0; index < maskData.length; index += 1) {
+        const logit = logits.data[index];
+        const probability = 1 / (1 + Math.exp(-logit));
+        maskData[index] = Math.round(probability * 255);
+      }
+      const mask = { data: maskData, width: maskWidth, height: maskHeight, channels: 1 };
+      cutoutBlob = await cutOutPet(canvas, mask);
+      if (session !== personalPetEditorSession || selection !== selectionVersion) return;
+      if (cutoutPreviewUrl) URL.revokeObjectURL(cutoutPreviewUrl);
+      cutoutPreviewUrl = URL.createObjectURL(cutoutBlob);
+      preview.innerHTML = `<img src="${cutoutPreviewUrl}" alt="毛孩自動去背預覽">`;
+      applyButton.disabled = false;
+      setStatus("去背完成。確認預覽喜歡的話，就可以帶牠去星球旅行。 ");
+    } catch (error) {
+      console.warn("Personal pet background removal failed:", error);
+      const details = String(error?.message || "");
+      setStatus(/[\u3400-\u9fff]/.test(details) ? details : "去背暫時沒有完成。請確認網路連線，或改用背景簡單、毛孩清楚入鏡的照片再試一次。 ");
+    } finally {
+      if (session === personalPetEditorSession && selection === selectionVersion && $("#remove-pet-background")) {
+        cutoutButton.textContent = "自動去背";
+        cutoutButton.disabled = !selectedFile;
+      }
+    }
+  });
+
+  applyButton.addEventListener("click", async () => {
+    if (!cutoutBlob) return;
+    const selectedCutout = cutoutBlob;
+    const selection = selectionVersion;
+    applyButton.disabled = true;
+    try {
+      const name = $("#personal-pet-name").value.trim().slice(0, 10) || "我的毛孩";
+      const personalPet = {
+        id: `pet-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        name,
+        blob: selectedCutout,
+        createdAt: Date.now(),
+      };
+      await savePersonalPet(personalPet);
+      if (session !== personalPetEditorSession || selection !== selectionVersion) return;
+      personalPet.previewUrl = URL.createObjectURL(selectedCutout);
+      personalPets.push(personalPet);
+      state.activeCustomPetId = personalPet.id;
+      state.activePet = "dog";
+      state.customPetName = name;
+      state.customPetEnabled = true;
+      setPersonalPetAsset(selectedCutout);
+      refresh();
+      gameScene?.setPersonalPet(personalPetBlob);
+      closeModal();
+      showToast(`${name} 已加入毛孩名冊。`);
+    } catch (error) {
+      applyButton.disabled = false;
+      setStatus(error?.message || "照片目前無法保存，請確認裝置空間後再試一次。 ");
+    }
+  });
+
+}
+
+async function restorePersonalPet() {
+  try {
+    const storedPets = await loadPersonalPets();
+    if (!state.activeCustomPetId && state.customPetName && state.customPetName !== "我的毛孩") {
+      const legacyNamedPet = storedPets.find((pet) => pet.name === "我的毛孩");
+      if (legacyNamedPet) {
+        legacyNamedPet.name = state.customPetName;
+        await savePersonalPet(legacyNamedPet);
+      }
+    }
+    personalPets = storedPets;
+    personalPets = personalPets.map((pet) => ({ ...pet, previewUrl: URL.createObjectURL(pet.blob) }));
+    const active = personalPets.find((pet) => pet.id === state.activeCustomPetId) || personalPets[0] || null;
+    state.activeCustomPetId = active?.id || "";
+    state.activePet = "dog";
+    state.customPetEnabled = Boolean(active);
+    state.customPetName = active?.name || "我的毛孩";
+    setPersonalPetAsset(active?.blob || null);
+    gameScene?.setPersonalPet(active?.blob || null);
+    refresh();
+  } catch (error) {
+    personalPets = [];
+    state.activeCustomPetId = "";
+    state.customPetEnabled = false;
+    setPersonalPetAsset(null);
+    console.warn("Could not restore the personal pet library:", error);
+    refresh();
+  }
+  updateHUD();
+}
+
 function modalHeader(eyebrow, title, description) {
   return `<span class="modal-eyebrow">${eyebrow}</span><h2 class="modal-title" id="modal-title">${title}</h2><p class="modal-intro">${description}</p>`;
+}
+
+function applyFontSize() {
+  const selected = FONT_SIZE_OPTIONS.find((option) => option.id === state.settings.fontSize) || FONT_SIZE_OPTIONS[0];
+  document.documentElement.style.setProperty("--font-scale", String(selected.scale));
+}
+
+function setFontSize(size) {
+  const selected = FONT_SIZE_OPTIONS.find((option) => option.id === size);
+  if (!selected) return;
+  state.settings.fontSize = selected.id;
+  applyFontSize();
+  persist();
+  modalContent.querySelectorAll("[data-font-size]").forEach((button) => {
+    const isSelected = button.dataset.fontSize === selected.id;
+    button.classList.toggle("is-selected", isSelected);
+    button.setAttribute("aria-pressed", String(isSelected));
+  });
+  const status = modalContent.querySelector("#settings-size-status");
+  if (status) status.textContent = `目前使用「${selected.label}」字級，已自動儲存在這個瀏覽器。`;
+}
+
+function openSettings() {
+  const selectedId = state.settings.fontSize;
+  const options = FONT_SIZE_OPTIONS.map((option) => `
+    <button class="settings-size-option ${selectedId === option.id ? "is-selected" : ""}" type="button" data-font-size="${option.id}" aria-pressed="${selectedId === option.id}">
+      <span class="settings-size-sample" aria-hidden="true">字</span><strong>${option.label}</strong>
+    </button>`).join("");
+  const selected = FONT_SIZE_OPTIONS.find((option) => option.id === selectedId) || FONT_SIZE_OPTIONS[0];
+  openModal(`${modalHeader("A LITTLE MORE COMFORT", "畫面設定", "調整成最舒服的閱讀大小，讓每段旅程都看得輕鬆。")}
+    <section class="settings-panel" aria-label="閱讀設定">
+      <div class="settings-panel-heading"><span class="settings-heading-icon" aria-hidden="true">Aa</span><div><strong>字體大小</strong><small>即時套用到遊戲文字</small></div></div>
+      <div class="settings-size-options" role="group" aria-label="選擇字體大小">${options}</div>
+      <div class="settings-preview"><small>即時預覽 · PREVIEW</small><p>今天，也一起待一會兒吧。</p></div>
+      <p class="settings-size-status" id="settings-size-status" role="status" aria-live="polite">目前使用「${selected.label}」字級，會自動儲存在這個瀏覽器。</p>
+    </section>`);
+  modalContent.querySelectorAll("[data-font-size]").forEach((button) => {
+    button.addEventListener("click", () => setFontSize(button.dataset.fontSize));
+  });
 }
 
 function choiceButtons(field, options, selected, iconKey = "icon") {
@@ -412,31 +832,27 @@ function choiceButtons(field, options, selected, iconKey = "icon") {
 }
 
 function travelerPreviewMarkup() {
-  const species = pets.find((pet) => pet.id === travelerDraft.species) || pets[0];
-  const fur = furOptions.find((option) => option.id === travelerDraft.fur) || furOptions[0];
+  const pet = personalPets.find((item) => item.id === state.activeCustomPetId);
   const bag = bagOptions.find((option) => option.id === travelerDraft.bag) || bagOptions[0];
   const hat = hatOptions.find((option) => option.id === travelerDraft.hat) || hatOptions[0];
-  return `<div class="traveler-preview" style="--traveler-fur:${fur.swatch}">
+  return `<div class="traveler-preview" style="--traveler-fur:#d9ceb7">
     <span class="preview-star preview-star-one" aria-hidden="true">✦</span><span class="preview-star preview-star-two" aria-hidden="true">✧</span>
-    <span class="preview-creature" aria-hidden="true">${species.icon}<i>${hat.id === "none" ? "" : hat.icon}</i></span>
+    <span class="preview-creature" aria-hidden="true">${pet?.previewUrl ? `<img src="${pet.previewUrl}" alt="">` : "♡"}<i>${hat.id === "none" ? "" : hat.icon}</i></span>
     <div class="preview-copy"><span class="preview-caption">MY LITTLE TRAVELER</span><strong id="traveler-preview-name">${escapeHtml(travelerDraft.name || "小小旅人")}</strong>
-      <small>${species.kind} · ${fur.name}</small><span class="preview-kit">${bag.icon}　${hat.id === "none" ? "準備好出發" : hat.name}</span></div>
+      <small>你上傳的毛孩</small><span class="preview-kit">${bag.icon}　${hat.id === "none" ? "準備好出發" : hat.name}</span></div>
   </div>`;
 }
 
 function renderTravelerStep() {
   const descriptions = [
-    "選一種喜歡的模樣，讓毛孩子成為旅程裡最特別的夥伴。",
+    "旅人證會使用目前選擇的毛孩照片，替牠留下旅程的起點。",
     "給牠一個名字，再挑一種最像牠的旅行個性。",
     "背起小行囊、戴上喜歡的帽子，旅人證就完成了。",
   ];
   let controls = "";
   if (travelerStep === 1) {
-    const speciesButtons = pets.map((pet) => `<button class="species-choice ${travelerDraft.species === pet.id ? "selected" : ""}" type="button" data-field="species" data-value="${pet.id}" aria-pressed="${travelerDraft.species === pet.id}"><span aria-hidden="true">${pet.icon}</span><strong>${pet.kind}</strong></button>`).join("");
-    const furButtons = furOptions.map((option) => `<button class="fur-choice ${travelerDraft.fur === option.id ? "selected" : ""}" type="button" data-field="fur" data-value="${option.id}" aria-label="${option.name}" aria-pressed="${travelerDraft.fur === option.id}"><span style="--fur-swatch:${option.swatch}"></span><small>${option.name}</small></button>`).join("");
-    controls = `<div class="maker-section"><h3>選擇毛孩外型</h3><div class="species-options">${speciesButtons}</div></div>
-      <div class="maker-section"><h3>挑一種毛色</h3><div class="fur-options">${furButtons}</div></div>
-      <div class="maker-section split-options"><div><h3>耳朵</h3><div class="maker-choice-row">${choiceButtons("ears", earOptions)}</div></div><div><h3>眼睛</h3><div class="maker-choice-row">${choiceButtons("eyes", eyeOptions)}</div></div></div>`;
+    const pet = personalPets.find((item) => item.id === state.activeCustomPetId);
+    controls = `<div class="maker-section traveler-photo-confirm"><h3>這張證件的主角</h3><div class="traveler-photo-chip">${pet?.previewUrl ? `<img src="${pet.previewUrl}" alt="">` : "♡"}<span><strong>${escapeHtml(pet?.name || "尚未選擇毛孩")}</strong><small>使用你上傳的照片</small></span></div><p class="maker-hint">想替另一位毛孩製作旅人證，可以先回到首頁切換主角。</p></div>`;
   } else if (travelerStep === 2) {
     const traits = traitOptions.map((trait) => `<button class="trait-choice ${travelerDraft.trait === trait ? "selected" : ""}" type="button" data-field="trait" data-value="${trait}" aria-pressed="${travelerDraft.trait === trait}"><span aria-hidden="true">${trait === "愛看雲朵" ? "☁" : trait === "喜歡散步" ? "➶" : "♡"}</span>${trait}</button>`).join("");
     controls = `<label class="maker-label" for="traveler-name">旅人名字</label><input class="maker-input" id="traveler-name" type="text" maxlength="10" autocomplete="off" placeholder="像是：咖啡" value="${escapeHtml(travelerDraft.name)}"><p class="maker-hint">最多 10 個字，之後也可以隨時改名。</p>
@@ -478,6 +894,7 @@ function renderTravelerStep() {
     }
     state.traveler = normalizeTraveler({ ...travelerDraft, name: travelerDraft.name.trim(), createdAt: state.traveler?.createdAt || Date.now() });
     state.activePet = state.traveler.species;
+    state.customPetEnabled = Boolean(state.activeCustomPetId);
     refresh();
     gameScene?.showSparkle(state.activePet, "✦");
     openTravelerCard();
@@ -486,6 +903,11 @@ function renderTravelerStep() {
 }
 
 function openTravelerMaker() {
+  if (!state.customPetEnabled) {
+    showToast("先上傳一位毛孩，才能替牠製作旅人證。");
+    openPersonalPetSetup();
+    return;
+  }
   const base = currentPet();
   const furDefaults = { dog: "honey", cat: "silver", bunny: "cocoa" };
   travelerDraft = normalizeTraveler(state.traveler || {
@@ -503,23 +925,26 @@ function openTravelerMaker() {
 }
 
 function openTravelerCard() {
+  if (!state.customPetEnabled) {
+    showToast("先上傳一位毛孩，才能替牠製作旅人證。");
+    openPersonalPetSetup();
+    return;
+  }
   const traveler = state.traveler;
   if (!traveler) {
     openTravelerMaker();
     return;
   }
-  const species = pets.find((pet) => pet.id === traveler.species) || pets[0];
-  const fur = furOptions.find((option) => option.id === traveler.fur) || furOptions[0];
   const bag = bagOptions.find((option) => option.id === traveler.bag) || bagOptions[0];
   const hat = hatOptions.find((option) => option.id === traveler.hat) || hatOptions[0];
   const departure = new Date(traveler.createdAt).toLocaleDateString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit" }).replaceAll("/", ".");
   openModal(`${modalHeader("A LITTLE TRAVELER ID", "專屬小小旅人證", "每一段柔軟的陪伴，都從這張小小的證件開始。")}
-    <article class="traveler-id-card" style="--traveler-fur:${fur.swatch}">
+    <article class="traveler-id-card" style="--traveler-fur:#d9ceb7">
       <div class="traveler-id-top"><span>THE LITTLE STAR TRAVELER</span><span class="id-stamp">✦ 出發中</span></div>
-      <div class="traveler-id-main"><div class="traveler-id-portrait" aria-hidden="true"><span>${species.icon}</span><i>${hat.id === "none" ? "" : hat.icon}</i><b>${bag.icon}</b></div><div class="traveler-id-name"><small>NAME / 名字</small><strong>${escapeHtml(traveler.name)}</strong><span>${species.kind} · ${fur.name}</span></div></div>
+      <div class="traveler-id-main"><div class="traveler-id-portrait" aria-hidden="true"><img src="${personalPetObjectUrl}" alt=""><i>${hat.id === "none" ? "" : hat.icon}</i><b>${bag.icon}</b></div><div class="traveler-id-name"><small>NAME / 名字</small><strong>${escapeHtml(traveler.name)}</strong><span>${escapeHtml(currentPet().name)} · 你的毛孩</span></div></div>
       <div class="traveler-id-fields"><div><small>出發日</small><strong>${departure}</strong></div><div><small>喜歡</small><strong>${traveler.trait}</strong></div><div class="traveler-id-destination"><small>目的地</small><strong>未知星球 ♡</strong></div></div>
       <span class="traveler-paw" aria-hidden="true">✿</span>
-    </article><div class="traveler-card-actions"><button class="secondary-button" id="edit-traveler" type="button">重新整理外型</button><button class="primary-button" id="traveler-card-done" type="button">收好旅人證</button></div>`);
+    </article><div class="traveler-card-actions"><button class="secondary-button" id="edit-traveler" type="button">編輯旅人證</button><button class="primary-button" id="traveler-card-done" type="button">收好旅人證</button></div>`);
   $("#edit-traveler").addEventListener("click", openTravelerMaker);
   $("#traveler-card-done").addEventListener("click", closeModal);
 }
@@ -540,8 +965,9 @@ function addSouvenir(souvenir) {
 
 function makeDailyPostcard(date) {
   const pet = currentPet();
+  if (!pet.lifeKey) return null;
   const place = currentDestination();
-  const life = state.petLife[pet.id] || createPetLifeRecord(date);
+  const life = state.petLife[pet.lifeKey] || createPetLifeRecord(date);
   const activity = LIFE_SEQUENCE.includes(life.activity) ? life.activity : "explore";
   const recentFriend = [...life.memories].reverse().find((memory) => memory.activity === "friend");
   const messages = {
@@ -552,12 +978,12 @@ function makeDailyPostcard(date) {
   const titles = { explore: "路邊的小小發現", friend: "遇見朋友的一天", rest: "從午睡夢裡寄來的信" };
   const souvenir = Math.random() < 0.35 ? souvenirCatalog[Math.floor(Math.random() * souvenirCatalog.length)] : null;
   return {
-    id: `faraway-${pet.id}-${date}`,
+    id: `faraway-${pet.lifeKey}-${date}`,
     title: `${pet.name}寄來的${titles[activity]}`,
     from: `${pet.name} · ${place.name}`,
     message: messages[activity],
     destination: place.id,
-    petSpecies: pet.id,
+    petSpecies: null,
     petName: pet.name,
     activity,
     souvenir,
@@ -572,8 +998,10 @@ function deliverDuePostcards(now = Date.now()) {
   const firstBatch = Math.max(1, due - 2);
   for (let batch = firstBatch; batch <= due; batch += 1) {
     const card = makeDailyPostcard(state.lastPostcardAt + batch * POSTCARD_PERIOD);
-    state.cards.push(card);
-    if (card.souvenir) addSouvenir(card.souvenir);
+    if (card) {
+      state.cards.push(card);
+      if (card.souvenir) addSouvenir(card.souvenir);
+    }
   }
   state.cards = state.cards.slice(-60);
   state.lastPostcardAt += due * POSTCARD_PERIOD;
@@ -608,7 +1036,7 @@ function travelTo(destinationId) {
     state.stardust += 8;
     const letter = postage[place.id];
     const pet = currentPet();
-    state.cards.push({ id: `${place.id}-${Date.now()}`, ...letter, destination: place.id, petSpecies: pet.id, petName: pet.name, activity: state.petLife[pet.id]?.activity || "explore", date: Date.now() });
+    state.cards.push({ id: `${place.id}-${Date.now()}`, ...letter, destination: place.id, petSpecies: null, petName: pet.lifeKey ? pet.name : "", activity: pet.lifeKey ? state.petLife[pet.lifeKey]?.activity || "explore" : "explore", date: Date.now() });
     state.bond += 1;
     refresh();
     showToast(`新旅程郵票收藏好了，${letter.from} 也捎來一張信。`);
@@ -626,7 +1054,7 @@ function openInbox() {
     const place = destinations.find((destination) => destination.id === card.destination)
       || destinations.find((destination) => postage[destination.id]?.from === card.from)
       || destinations[0];
-    const pet = pets.find((petOption) => petOption.id === card.petSpecies) || currentPet();
+    const pet = pets.find((petOption) => petOption.id === card.petSpecies) || { icon: "♡", name: card.petName || "遠方的旅伴" };
     const activity = LIFE_SEQUENCE.includes(card.activity) ? card.activity : "explore";
     const souvenir = souvenirCatalog.find((item) => item.id === card.souvenir?.id);
     const date = new Date(Number(card.date) || Date.now()).toLocaleDateString("zh-TW", { year: "numeric", month: "2-digit", day: "2-digit" }).replaceAll("/", " · ");
@@ -635,7 +1063,7 @@ function openInbox() {
     <article class="mail-card postcard-mail postcard-mail-${place.id}">
       <div class="postcard-painting postcard-painting-${place.id}" aria-label="${escapeHtml(place.name)}的手繪風景">
         <span class="postcard-painting-moon" aria-hidden="true">${place.id === "coast" ? "☼" : place.id === "sunflower" ? "☀" : "✦"}</span>
-        <span class="postcard-painting-pet" aria-hidden="true">${pet.icon}</span>
+        <span class="postcard-painting-pet" aria-hidden="true">♡</span>
         <span class="postcard-painting-flower" aria-hidden="true">${activity === "rest" ? "Zz" : activity === "friend" ? "♡" : "✿"}</span>
         <span class="postcard-painting-stamp" aria-hidden="true">✉</span>
       </div>
@@ -661,25 +1089,26 @@ function albumDate(timestamp) {
 }
 
 function collectAlbumEntries() {
-  const daily = pets.flatMap((pet) => {
-    const record = state.petLife[pet.id] || createPetLifeRecord();
+  const daily = personalPets.flatMap((pet) => {
+    const lifeKey = `uploaded:${pet.id}`;
+    const record = state.petLife[lifeKey] || createPetLifeRecord();
     return record.memories.map((memory) => {
       const art = lifeMemoryArt[memory.activity] || lifeMemoryArt.explore;
       return {
         id: `daily-${memory.id}`, kind: "daily", date: memory.date,
         title: memory.title || art.fallbackTitle, message: memory.message || art.fallbackMessage,
         label: LIFE_KIND_LABELS[memory.activity], art: memory.activity, icon: art.icon,
-        petIcon: pet.icon, petName: petLifeName(pet.id),
+        petIcon: "♡", petName: pet.name,
       };
     });
   });
   const trips = state.cards.map((card) => {
     const place = destinations.find((item) => item.id === card.destination) || destinations[0];
-    const pet = pets.find((item) => item.id === card.petSpecies) || pets[0];
+    const pet = pets.find((item) => item.id === card.petSpecies) || { icon: "♡", name: card.petName || "遠方的旅伴" };
     return {
       id: `travel-${card.id}`, kind: "travel", date: Number(card.date) || Date.now(),
       title: card.title || `${place.name}的明信片`, message: card.message || "遠方捎來了一張明信片。",
-      label: place.name, art: place.id, icon: "✉", petIcon: pet.icon, petName: card.petName || pet.name,
+      label: place.name, art: place.id, icon: "✉", petIcon: "♡", petName: card.petName || "",
     };
   });
   const letters = state.journal.map((letter, index) => ({
@@ -1121,6 +1550,7 @@ function applyIdleGifts() {
 }
 
 function petWithAffection(source = "touch") {
+  if (!state.customPetEnabled) return;
   const pet = currentPet();
   if (source === "snack") {
     if (state.snacks <= 0) {
@@ -1142,10 +1572,7 @@ function petWithAffection(source = "touch") {
 }
 
 function onCanvasPet(petId) {
-  if (state.activePet !== petId) {
-    state.activePet = petId;
-    refresh();
-  }
+  if (!state.customPetEnabled || state.activePet !== petId) return;
   petWithAffection("touch");
 }
 
@@ -1158,17 +1585,8 @@ class GardenScene extends Phaser.Scene {
     placeholder.context.fillRect(0, 0, 1200, 760);
     placeholder.refresh();
     this.art = this.add.image(600, 380, "garden-placeholder").setDisplaySize(1200, 760).setDepth(-5);
-    this.petZones = [
-      { id: "dog", x: 403, y: 550, width: 210, height: 190 },
-      { id: "cat", x: 645, y: 563, width: 198, height: 169 },
-      { id: "bunny", x: 872, y: 548, width: 176, height: 202 },
-    ];
-    for (const pet of this.petZones) {
-      this.add.zone(pet.x, pet.y, pet.width, pet.height).setInteractive({ useHandCursor: true }).on("pointerdown", (_pointer, _x, _y, event) => {
-        event?.stopPropagation?.();
-        onCanvasPet(pet.id);
-      });
-    }
+    this.customPetMode = null;
+    this.configurePetZones(state);
     this.time.addEvent({ delay: 3100, loop: true, callback: () => {
       if (document.hidden) return;
       const x = Phaser.Math.Between(80, 1110), y = Phaser.Math.Between(90, 405);
@@ -1181,6 +1599,9 @@ class GardenScene extends Phaser.Scene {
 
   paint(currentState) {
     if (!this.art) return;
+    if (this.customPetMode !== Boolean(currentState.customPetEnabled)) this.configurePetZones(currentState);
+    this.personalPetImage?.setVisible(Boolean(currentState.customPetEnabled));
+    this.personalPetShadow?.setVisible(Boolean(currentState.customPetEnabled));
     const request = ++sceneTextureNumber;
     const key = `garden-art-${request}`;
     const image = new Image();
@@ -1192,6 +1613,62 @@ class GardenScene extends Phaser.Scene {
       if (oldKey && oldKey !== "garden-placeholder" && oldKey !== key) this.textures.remove(oldKey);
     };
     image.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(createSceneSvg(currentState))}`;
+  }
+
+  configurePetZones(currentState) {
+    this.petHitZones?.forEach((zone) => zone.destroy());
+    this.customPetMode = Boolean(currentState.customPetEnabled);
+    this.petZones = this.customPetMode
+      ? [{ id: currentState.activePet, x: 600, y: 520, width: 420, height: 320 }]
+      : [];
+    this.petHitZones = this.petZones.map((pet) => this.add.zone(pet.x, pet.y, pet.width, pet.height)
+      .setInteractive({ useHandCursor: true })
+      .on("pointerdown", (_pointer, _x, _y, event) => {
+        event?.stopPropagation?.();
+        onCanvasPet(pet.id);
+      }));
+  }
+
+  setPersonalPet(blob) {
+    const request = (this.personalPetLoadRequest || 0) + 1;
+    this.personalPetLoadRequest = request;
+    const oldKey = this.personalPetTextureKey;
+    if (!blob) {
+      this.personalPetImage?.destroy();
+      this.personalPetShadow?.destroy();
+      this.personalPetImage = null;
+      this.personalPetShadow = null;
+      this.personalPetTextureKey = "";
+      if (oldKey && this.textures.exists(oldKey)) this.textures.remove(oldKey);
+      updateHUD();
+      return;
+    }
+
+    const key = `personal-pet-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+    const image = new Image();
+    image.onload = () => {
+      if (request !== this.personalPetLoadRequest || !this.game || this.sys.isDestroyed) return;
+      this.textures.addImage(key, image);
+      this.personalPetImage?.destroy();
+      if (oldKey && oldKey !== key && this.textures.exists(oldKey)) this.textures.remove(oldKey);
+      this.personalPetTextureKey = key;
+      const scale = Math.min(390 / image.width, 310 / image.height, 1.25);
+      this.personalPetImage = this.add.image(600, 662, key).setOrigin(.5, 1).setScale(scale).setDepth(1);
+      this.personalPetImage.setInteractive({ useHandCursor: true }).on("pointerdown", (_pointer, _x, _y, event) => {
+        event?.stopPropagation?.();
+        onCanvasPet(state.activePet);
+      });
+      const displayWidth = image.width * scale;
+      this.personalPetShadow?.destroy();
+      this.personalPetShadow = this.add.ellipse(600, 654, Math.max(128, displayWidth * .63), Math.max(16, displayWidth * .1), 0x3e5544, .2).setDepth(0);
+      this.personalPetImage.setVisible(Boolean(state.customPetEnabled));
+      this.personalPetShadow.setVisible(Boolean(state.customPetEnabled));
+      this.tweens.add({ targets: this.personalPetImage, y: 656, duration: 2300, ease: "Sine.easeInOut", yoyo: true, repeat: -1 });
+      updateHUD();
+    };
+    image.onerror = () => { if (request === this.personalPetLoadRequest) showToast("毛孩照片目前無法讀取，請重新上傳一次。 "); };
+    if (!personalPetObjectUrl) setPersonalPetAsset(blob);
+    image.src = personalPetObjectUrl;
   }
 
   showSparkle(petId, symbol) {
@@ -1220,8 +1697,10 @@ const game = new Phaser.Game({
 game.events.once(Phaser.Core.Events.READY, () => {
   const garden = game.scene.getScene("GardenScene");
   if (garden) gameScene = garden;
+  restorePersonalPet();
 });
 
+$("#open-personal-pet").addEventListener("click", openPersonalPetSetup);
 $("#pet-touch").addEventListener("click", () => petWithAffection("touch"));
 $("#pet-snack").addEventListener("click", () => petWithAffection("snack"));
 $("#pet-travel").addEventListener("click", openTravel);
@@ -1232,6 +1711,7 @@ $("#open-traveler").addEventListener("click", openTravelerCard);
 $("#open-letter").addEventListener("click", openLetter);
 $("#open-shop").addEventListener("click", openShop);
 $("#open-house-decor").addEventListener("click", openHouseDecor);
+$("#open-settings").addEventListener("click", openSettings);
 $("#footprint-go-somewhere").addEventListener("click", openTravel);
 $("#open-footprint-album").addEventListener("click", () => {
   memoryFilter = "travel";
@@ -1268,6 +1748,7 @@ $("#modal-close").addEventListener("click", closeModal);
 modalBackdrop.addEventListener("pointerdown", (event) => { if (event.target === modalBackdrop) closeModal(); });
 document.addEventListener("keydown", (event) => { if (event.key === "Escape" && !modalBackdrop.hidden) closeModal(); });
 
+applyFontSize();
 applyIdleGifts();
 updateHUD();
 persist();

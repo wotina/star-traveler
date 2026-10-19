@@ -1,5 +1,5 @@
 const palettes = {
-  meadow: { sky: "#304468", far: "#526c8b", mid: "#5a7d84", ground: "#617b70", sun: "#f4dca0", accent: "#dfad88", whisper: "暮色落在樹屋旁，星星慢慢亮了起來。" },
+  meadow: { sky: "#425746", far: "#66775b", mid: "#71835f", ground: "#697c4e", sun: "#f4dca0", accent: "#dfad88", whisper: "暮色落在樹屋旁，星星慢慢亮了起來。" },
   coast: { sky: "#a9cbd9", far: "#85aebe", mid: "#72a4ad", ground: "#d7c69f", sun: "#f6dfa4", accent: "#d99787", whisper: "海浪把一封沒寫完的信送上岸。" },
   sunflower: { sky: "#b7d0d4", far: "#9dbcae", mid: "#8ea994", ground: "#839d7a", sun: "#f5da91", accent: "#d5a67d", whisper: "向日葵們正朝著同一個方向發呆。" },
   stargarden: { sky: "#304363", far: "#5d788d", mid: "#668583", ground: "#637d72", sun: "#f7e3af", accent: "#d7b3b4", whisper: "有幾顆星星，今晚打算陪我們久一點。" },
@@ -85,6 +85,7 @@ function petArt(active, traveler, petLife) {
     ${focus("dog", 4, -2, 116, 90)}
     <ellipse cx="0" cy="66" rx="110" ry="17" fill="#455e4b" opacity=".17"/>
     <path d="M-91 27 C-107 3 -90 -33 -55 -42 C-27 -66 33 -65 68 -40 C101 -21 112 21 85 45 C50 70 -38 73 -80 48Z" fill="${dogBody}" stroke="#6d5038" stroke-width="5" stroke-linejoin="round"/>
+    <g fill="none" stroke="${dogFur.shadow}" stroke-width="3.5" stroke-linecap="round" opacity=".42"><path d="M-78 -8q7 6 14 3m1 25q8 7 16 3m28 22q8 5 15 1m33-8q8 2 14-3M-35-48q6-6 12-5m49-3q7 0 12 5"/><path d="M-71 -22q-5 4-7 9m44-38q-3 5-2 9m95 18q5 4 6 9" stroke="#f3dfb9" stroke-width="3"/></g>
     <path d="M-95 22 C-132 36 -133 57 -159 58 C-141 39 -143 23 -123 11" fill="${dogFur.shadow}" stroke="#6d5038" stroke-width="5" stroke-linecap="round"/>
     <path d="M-68 45 Q-69 73 -40 69 L-26 50 M53 47 Q58 71 83 62 L86 44" fill="#efd4a0" stroke="#6d5038" stroke-width="4" stroke-linecap="round"/>
     ${dogEar}
@@ -103,6 +104,7 @@ function petArt(active, traveler, petLife) {
     ${focus("cat", 0, -3, 105, 79)}
     <ellipse cx="0" cy="57" rx="104" ry="16" fill="#455e4b" opacity=".18"/>
     <path d="M-82 22 C-99 -6 -69 -50 -29 -41 C4 -57 52 -37 68 -4 C91 24 71 53 38 53 L-54 53Z" fill="${catFur.main}" stroke="#46515c" stroke-width="5" stroke-linejoin="round"/>
+    <g fill="none" stroke="${catFur.shadow}" stroke-width="3" stroke-linecap="round" opacity=".43"><path d="M-71 5q7 3 12-2m25-24q6-5 11-3m42 31q8 4 14-1m-47 28q7 4 13 1"/><path d="M-55-44l-4 8m91-2 7 7" stroke="#e8e4d9" stroke-width="2.5"/></g>
     <path d="M-42 27 Q-54 52 -25 55 L-17 42 M29 42 Q39 58 61 48 L58 34" fill="#d8d9d2" stroke="#46515c" stroke-width="4" stroke-linecap="round"/>
     ${catEars}
     <path d="M-57 -52 L-54 -39 L-43 -46 M54 -56 L53 -39 L42 -48" fill="#d99d9b"/>
@@ -121,6 +123,7 @@ function petArt(active, traveler, petLife) {
     <ellipse cx="0" cy="67" rx="93" ry="15" fill="#455e4b" opacity=".18"/>
     ${bunnyEars}
     <path d="M-72 20 C-69 -18 -40 -52 2 -48 C47 -48 75 -13 67 27 C63 62 31 71 -24 63 C-62 59 -83 45 -72 20Z" fill="${bunnyFur.main}" stroke="#655541" stroke-width="5" stroke-linejoin="round"/>
+    <g fill="none" stroke="${bunnyFur.shadow}" stroke-width="3" stroke-linecap="round" opacity=".4"><path d="M-57 11q7 5 14 2m2-33q7-4 12-1m28 44q7 5 14 3m22-37q6 5 12 2"/><path d="M-49-43q-4 6-3 10m78-10q6 4 7 9" stroke="#f0e6d1" stroke-width="2.5"/></g>
     <path d="M-17 51 Q-22 67 1 67 L15 55 M30 55 Q40 70 58 60" fill="#e3d0b2" stroke="#655541" stroke-width="4" stroke-linecap="round"/>
     ${eyeArt("bunny", `<path d="M-3 -4 Q2 -12 8 -4" fill="none" stroke="#332d27" stroke-width="5" stroke-linecap="round"/>`, 2, -6)}
     <path d="M39 5 Q47 0 50 7 Q47 14 42 11Z" fill="#76604d"/>
@@ -155,7 +158,7 @@ function destinationArt(location, p) {
   return `<path d="M0 475 Q125 402 278 466 T566 466 T852 448 T1200 464 V760 H0Z" fill="${p.ground}"/><path d="M0 513 Q130 486 268 509 T525 514 T810 496 T1200 510 V760 H0Z" fill="#89a775" opacity=".52"/>`;
 }
 
-export function createSceneSvg({ location = "meadow", activePet = "dog", decor = [], traveler = null, petLife = {} } = {}) {
+export function createSceneSvg({ location = "meadow", activePet = "dog", decor = [], traveler = null, petLife = {}, customPetEnabled = false, showPresetPets = false } = {}) {
   const p = palettes[location] || palettes.meadow;
   const decorations = new Set(decor.filter((item) => safeDecor.has(item)));
   const night = location === "stargarden" || location === "meadow";
@@ -167,6 +170,22 @@ export function createSceneSvg({ location = "meadow", activePet = "dog", decor =
     const x = 34 + (i * 71) % 1125, y = 525 + (i * 43) % 151;
     const colors = ["#fff3ce", "#edb5a5", "#f4d77e", "#d8a7bb"];
     return `<g transform="translate(${x} ${y})"><path d="M0 5v17" stroke="#637f5d" stroke-width="2"/><circle r="3.8" fill="${colors[i % colors.length]}"/><path d="M-7 2q-5-6 0-6q5 1 7 6q2-6 7-6q4 4-2 8" fill="${colors[i % colors.length]}" opacity=".86"/></g>`;
+  }).join("");
+  const grassColors = location === "coast"
+    ? ["#f5e6c4", "#d5c69f", "#8fb7b6", "#fff1d1"]
+    : location === "sunflower"
+      ? ["#b8c58a", "#e5cf79", "#708b58", "#f6e4a5"]
+      : location === "stargarden"
+        ? ["#9eae8c", "#667d68", "#496355", "#ead8a8"]
+        : ["#afbd82", "#829763", "#435e42", "#d4ca8d"];
+  const grassBrushes = Array.from({ length: 96 }, (_, i) => {
+    const x = (i * 193 + 47) % 1200;
+    const y = 493 + (i * 83) % 253;
+    const lift = 5 + (i * 11) % 18;
+    const reach = 6 + (i * 13) % 23;
+    const color = grassColors[i % grassColors.length];
+    const width = 1.5 + (i % 4) * .7;
+    return `<path d="M${x} ${y}q${(i % 2 ? -1 : 1) * (2 + i % 7)} -${lift} ${reach} -${lift + (i % 5)}" fill="none" stroke="${color}" stroke-width="${width}" stroke-linecap="round" opacity=".${18 + (i % 4) * 5}"/>`;
   }).join("");
   const decorArt = `${decorations.has("lantern") ? `<g transform="translate(273 301)"><path d="M0 -10v15" stroke="#735540" stroke-width="3"/><path d="M-14 6 Q0 -1 14 6 L11 33 Q0 44 -11 33Z" fill="#ffdc8c" stroke="#805f43" stroke-width="3"/><path d="M-7 11v18M7 11v18" stroke="#dfa75a" stroke-width="2"/></g>` : ""}
   ${decorations.has("flowerbed") ? `<g transform="translate(210 522)"><path d="M0 0q33-21 66 0v24H0Z" fill="#d58e73" stroke="#77543f" stroke-width="3"/><path d="M4 6q28-11 57 0" stroke="#e9c89b" stroke-width="3"/><circle cx="16" cy="-7" r="10" fill="#e8a3a0"/><circle cx="38" cy="-18" r="12" fill="#f1ce72"/><circle cx="57" cy="-6" r="9" fill="#e8a3a0"/><path d="M16 0v8M38-8v16M57 2v7" stroke="#6f885e" stroke-width="3"/></g>` : ""}
@@ -188,21 +207,22 @@ export function createSceneSvg({ location = "meadow", activePet = "dog", decor =
   const nightStars = night ? [[80,105],[445,99],[586,143],[829,95],[1137,122],[483,268],[1042,289],[86,251],[725,307],[958,239],[337,114]].map(([x,y], index) => `<path d="M${x-4} ${y}h8 M${x} ${y-4}v8" stroke="#fff0c9" stroke-width="2.5" stroke-linecap="round" opacity=".${index % 3 ? "72" : "96"}"/>`).join("") : "";
 
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 760" width="1200" height="760">
-    <defs><linearGradient id="sky" x2="0" y2="1"><stop stop-color="${p.sky}"/><stop offset="1" stop-color="${night ? "#758c91" : "#e8edf0"}"/></linearGradient><filter id="paper"><feTurbulence type="fractalNoise" baseFrequency=".74" numOctaves="2" stitchTiles="stitch"/><feColorMatrix values=".18 0 0 0 .7 .18 0 0 0 .66 .18 0 0 0 .52 0 0 0 .09 0"/></filter></defs>
+    <defs><linearGradient id="sky" x2="0" y2="1"><stop stop-color="${p.sky}"/><stop offset="1" stop-color="${night ? "#89917e" : "#e8edf0"}"/></linearGradient><filter id="paper"><feTurbulence type="fractalNoise" baseFrequency=".74" numOctaves="2" stitchTiles="stitch"/><feColorMatrix values=".18 0 0 0 .7 .18 0 0 0 .66 .18 0 0 0 .52 0 0 0 .12 0"/></filter></defs>
     <rect width="1200" height="760" fill="url(#sky)"/>${moonSun}${nightStars}${cloud(490,153,.8)}${cloud(763,238,.55)}
     <path d="M0 394 Q122 328 240 389 T474 377 T729 387 T965 361 T1200 382 V760 H0Z" fill="${p.far}" opacity=".91"/><path d="M0 440 Q144 377 271 422 T531 414 T804 423 T1056 399 T1200 418 V760 H0Z" fill="${p.mid}" opacity=".84"/>
     ${location === "coast" ? destinationArt(location,p) : `<path d="M0 472 Q125 402 278 466 T566 466 T852 448 T1200 464 V760 H0Z" fill="${p.ground}"/>`}
     ${location === "sunflower" || location === "stargarden" ? destinationArt(location,p) : ""}${trees}${treehouse}${decorArt}
     <path d="M0 548 Q132 523 270 551 T550 543 T839 554 T1080 536 T1200 544 V760 H0Z" fill="#6d8c62" opacity=".${night ? "58" : "40"}"/>
-    ${flowers}${petArt(activePet, traveler, petLife[activePet])}
+    ${grassBrushes}
+    ${flowers}${showPresetPets && !customPetEnabled ? petArt(activePet, traveler, petLife[activePet]) : ""}
     <g fill="none" stroke="#f7e6af" stroke-width="3" stroke-linecap="round" opacity=".8"><path d="M465 328l3-9 3 9 9 3-9 3-3 9-3-9-9-3z"/><path d="M1098 381l2-7 2 7 7 2-7 2-2 7-2-7-7-2z"/><path d="M380 467l2-6 2 6 6 2-6 2-2 6-2-6-6-2z"/></g>
-    <rect width="1200" height="760" filter="url(#paper)" opacity=".19" pointer-events="none"/>
+    <rect width="1200" height="760" filter="url(#paper)" opacity=".25" pointer-events="none"/>
   </svg>`;
 }
 
 const safeHouseDecor = new Set(["photo-frame", "star-plush", "window-plant", "souvenir-shelf", "moon-lamp", "postcard-wall"]);
 
-export function createHouseSvg({ activePet = "dog", traveler = null, houseDecor = [], souvenirs = [] } = {}) {
+export function createHouseSvg({ activePet = "dog", traveler = null, houseDecor = [], souvenirs = [], showPet = true } = {}) {
   const species = ["dog", "cat", "bunny"].includes(activePet) ? activePet : "dog";
   const custom = traveler?.species === species ? traveler : null;
   const furDefaults = {
@@ -233,7 +253,7 @@ export function createHouseSvg({ activePet = "dog", traveler = null, houseDecor 
       <linearGradient id="wall" x2="0" y2="1"><stop stop-color="#f3dfc9"/><stop offset="1" stop-color="#e7c8a7"/></linearGradient>
       <linearGradient id="night-window" x2="0" y2="1"><stop stop-color="#526987"/><stop offset="1" stop-color="#beac9d"/></linearGradient>
       <linearGradient id="floor" x2="0" y2="1"><stop stop-color="#c58e5e"/><stop offset="1" stop-color="#a8734e"/></linearGradient>
-      <filter id="paper"><feTurbulence type="fractalNoise" baseFrequency=".72" numOctaves="2" stitchTiles="stitch"/><feColorMatrix values=".18 0 0 0 .7 .18 0 0 0 .66 .18 0 0 0 .52 0 0 0 .08 0"/></filter>
+      <filter id="paper"><feTurbulence type="fractalNoise" baseFrequency=".72" numOctaves="2" stitchTiles="stitch"/><feColorMatrix values=".18 0 0 0 .7 .18 0 0 0 .66 .18 0 0 0 .52 0 0 0 .11 0"/></filter>
     </defs>
     <rect width="1000" height="760" fill="url(#wall)"/>
     <path d="M0 65Q176 89 331 63T663 67T1000 58" fill="none" stroke="#b78358" stroke-width="30" opacity=".78"/>
@@ -257,7 +277,7 @@ export function createHouseSvg({ activePet = "dog", traveler = null, houseDecor 
     <path d="M297 604Q500 569 718 604L747 672Q697 698 510 697Q340 700 276 673Z" fill="#b5c4bb" stroke="#f7e8d2" stroke-width="8"/>
     <path d="M296 650Q505 618 735 651L759 701Q694 731 510 729Q336 730 263 704Z" fill="#78939a" stroke="#e9d9c3" stroke-width="8"/>
     <path d="M315 666Q500 642 713 667" fill="none" stroke="#9db2ad" stroke-width="6" stroke-linecap="round"/>
-    <g transform="translate(514 601)">
+    ${showPet ? `<g transform="translate(514 601)">
       <ellipse cx="3" cy="36" rx="117" ry="59" fill="${colors.main}" stroke="${colors.stroke}" stroke-width="6"/>
       <path d="M92 31q50-16 45-54q-3-25-24-16q-12 7-10 23" fill="none" stroke="${colors.shadow}" stroke-width="14" stroke-linecap="round"/>
       <path d="M-57 73q-16 20 10 23l32-2M24 75q-5 21 21 20l30-5" fill="${colors.main}" stroke="${colors.stroke}" stroke-width="5" stroke-linecap="round"/>
@@ -267,12 +287,12 @@ export function createHouseSvg({ activePet = "dog", traveler = null, houseDecor 
       <ellipse cx="-4" cy="10" rx="25" ry="17" fill="#f4e6d3"/><path d="M-7 7q7-8 14 0q-3 7-8 7q-5 0-6-7Z" fill="#5f493b"/><path d="M-1 15q-9 12-20 7m21-7q9 12 20 7" fill="none" stroke="#a5635e" stroke-width="3" stroke-linecap="round"/>
       <path d="M-46-52q9-9 17 0m42 0q9-9 17 0" fill="none" stroke="${colors.stroke}" stroke-width="4" stroke-linecap="round"/>
       ${custom?.species === species ? `<path d="M-96 18q-19 10-25 31q23 7 39-16" fill="${colors.shadow}" stroke="${colors.stroke}" stroke-width="4"/>` : ""}
-    </g>
+    </g>` : ""}
     <g transform="translate(88 390)"><rect width="140" height="112" rx="6" fill="#8c6347" stroke="#704c39" stroke-width="5"/><rect x="9" y="8" width="122" height="92" fill="#e8d4b6"/><path d="M18 79Q48 46 70 73T122 63V94H18Z" fill="#8da587"/><circle cx="98" cy="27" r="12" fill="#f2d797"/><path d="M53 92q18-35 37-3" fill="none" stroke="#b47b55" stroke-width="5"/><text x="70" y="109" text-anchor="middle" font-family="serif" font-size="10" fill="#6d503d">OUR HOME</text></g>
     ${photo}${postcardWall}${shelf}${plant}${lamp}${plush}
     <g transform="translate(84 512)"><path d="M-40 0h80v77h-80Z" fill="#d29a77" stroke="#805c45" stroke-width="5"/><path d="M-46 0h92v-15q-45-12-92 0Z" fill="#e9c39c" stroke="#805c45" stroke-width="5"/><path d="M-21-12q-19-34 1-54q21 17 8 48m12 6q0-46 30-52q12 31-18 54" fill="#7e9974" stroke="#62795f" stroke-width="4"/></g>
     <g fill="#f6e3b9" opacity=".92"><path d="M493 101h15m-7-8v16M226 485h13m-7-7v14M883 421h13m-7-7v14" stroke="#f6e3b9" stroke-width="3"/><circle cx="739" cy="514" r="4"/><circle cx="257" cy="492" r="3"/></g>
-    <rect width="1000" height="760" filter="url(#paper)" opacity=".16" pointer-events="none"/>
+    <rect width="1000" height="760" filter="url(#paper)" opacity=".22" pointer-events="none"/>
   </svg>`;
 }
 
