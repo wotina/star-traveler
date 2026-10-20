@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#dcece8" />
+    <title>海洋生物小圖鑑｜配對遊戲</title>
+    <style>
+      :root {
+        color-scheme: light;
+        background: #dcece8;
+        font-family: "Kaiti TC", "BiauKai", "DFKai-SB", "Noto Serif TC", serif;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        min-height: 100%;
+        margin: 0;
+        overflow: hidden;
+        background: #dcece8;
+      }
+
+      #ocean-memory-stage {
+        position: fixed;
+        inset: 0;
+        overflow: hidden;
+        touch-action: manipulation;
+      }
+
+      #ocean-memory-stage canvas {
+        display: block;
+        width: 100% !important;
+        height: 100% !important;
+      }
+
+      .visually-hidden {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+      }
+    </style>
+  </head>
+  <body>
+    <main id="ocean-memory-stage" role="application" aria-label="海洋生物圖鑑記憶配對遊戲"></main>
+    <div id="ocean-memory-announcement" class="visually-hidden" role="status" aria-live="polite" aria-atomic="true"></div>
+    <script type="module" src="./src/ocean-memory.js"></script>
+  </body>
+</html>

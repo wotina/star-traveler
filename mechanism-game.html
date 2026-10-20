@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="zh-Hant">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#f6f1e3">
+    <title>海洋生物探索遊戲</title>
+    <style>
+      * { box-sizing: border-box }
+      html, body, #game-stage { width: 100%; height: 100%; margin: 0 }
+      body { overflow: hidden; background: #f6f1e3 }
+      #game-stage canvas { display: block; width: 100%; height: 100%; touch-action: none }
+    </style>
+  </head>
+  <body>
+    <main id="game-stage" aria-label="海洋生物互動遊戲"></main>
+    <script type="module" src="./src/mechanism-games.js"></script>
+  </body>
+</html>
